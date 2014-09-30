@@ -4,7 +4,6 @@ DECLARE
 @errStatement [varchar](8000),
 @msgStatement [varchar](8000),
 @DatabaseUserName [sysname],
-@DatabaseName [sysname],
 @dbname as sysname,
 @ServerUserName [sysname],
 @DefaultSchema [varchar] (256),
@@ -202,10 +201,10 @@ FOR
 SELECT *
 from ##rolez
 
-OPEN _roles FETCH NEXT FROM _roles INTO @DatabaseName,@RoleName
+OPEN _roles FETCH NEXT FROM _roles INTO @RoleName
 WHILE @@FETCH_STATUS=0
 BEGIN
-SET @msgStatement = 'USE [' + @DatabaseName + ']'
+SET @msgStatement = 'USE [' + @DBname + ']'
 PRINT @msgStatement
 PRINT 'GO'
 SET @msgStatement ='if not exists(SELECT 1 from sys.database_principals where type=''R'' and name ='''
@@ -214,7 +213,7 @@ SET @msgStatement ='if not exists(SELECT 1 from sys.database_principals where ty
 'CREATE ROLE  ['+ @RoleName + ']'+CHAR(13) +
 'END'
 PRINT @msgStatement
-FETCH NEXT FROM _roles INTO @DatabaseName,@RoleName
+FETCH NEXT FROM _roles INTO @RoleName
 END
 
 CLOSE _roles
@@ -229,7 +228,7 @@ CREATE TABLE ##role_membrs (
     RoleName nvarchar(max),
     MemberName nvarchar(max))
     
-CREATE TABLE ##role_membrsz (
+CREATE TABLE ##rolez (
 DatabaseName nvarchar(max),
 RoleName nvarchar(max),
 MemberName nvarchar(max))
@@ -256,7 +255,7 @@ order by 1,2'
 						    
 delete from ##role_membrs						    
 INSERT INTO ##role_membrs Exec (@query)
-insert into ##role_membrsz select @dbname, * from ##role_membrs
+insert into ##rolez select @dbname, * from ##role_membrs
 
 FETCH NEXT FROM _users INTO @DBname
 END
@@ -267,9 +266,9 @@ DECLARE _role_members
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR 
 SELECT *
-from ##role_membrsz
+from ##rolez
  
-OPEN _role_members FETCH NEXT FROM _role_members INTO @DatabaseName,@RoleName, @MemberName
+OPEN _role_members FETCH NEXT FROM _role_members INTO @RoleName, @MemberName
 WHILE @@FETCH_STATUS = 0
 BEGIN
 
@@ -279,13 +278,13 @@ PRINT 'GO'
 
 SET @msgStatement = 'EXEC [sp_addrolemember] ' + '@rolename = [' + @RoleName + '], ' + '@membername = [' + @MemberName + ']'
 PRINT @msgStatement
-FETCH NEXT FROM _role_members INTO @DatabaseName,@RoleName, @MemberName
+FETCH NEXT FROM _role_members INTO @RoleName, @MemberName
 END
 
 CLOSE _role_members 
 DEALLOCATE _role_members --cleanup cursor
 drop table ##role_membrs
-drop table ##role_membrsz
+drop table ##rolez
 
 -- Script GRANTS for Database Privileges on current database
 PRINT ' '
@@ -338,9 +337,9 @@ DECLARE _grant_privs
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR
 SELECT *
-from ##grantz
+from ##grant_privs
                             
-OPEN _grant_privs FETCH NEXT FROM _grant_privs INTO @DatabaseName,@PrivState,@PrivType,@PrivGrantee,@PrivWG
+OPEN _grant_privs FETCH NEXT FROM _grant_privs INTO @PrivState,@PrivType,@PrivGrantee,@PrivWG
 WHILE @@FETCH_STATUS = 0
 BEGIN
 	BEGIN
@@ -354,12 +353,12 @@ BEGIN
 			SET @PrivWG = ''
 		END
 	END
-SET @msgStatement = 'USE [' + @DatabaseName + ']'
-PRINT @msgStatement
-PRINT 'GO'
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
 SET @msgStatement = @PrivState +' ' + @PrivType + ' to "' + @PrivGrantee +'" '+@PrivWG
 PRINT @msgStatement
-FETCH NEXT FROM _grant_privs INTO @DatabaseName,@PrivState,@PrivType,@PrivGrantee,@PrivWG
+FETCH NEXT FROM _grant_privs INTO @PrivState,@PrivType,@PrivGrantee,@PrivWG
 END
 
 CLOSE _grant_privs 
@@ -377,7 +376,7 @@ CREATE TABLE ##grant_sch_users (
     SchWG nvarchar(max),
     SchGrantee nvarchar (max))
 
-CREATE TABLE ##grant_sch_usersz (
+CREATE TABLE ##grantz (
 	DatabaseName nvarchar(max),
     SchState nvarchar(max),
     SchType nvarchar(max),
@@ -406,7 +405,7 @@ BEGIN
 						    
 		DELETE FROM ##grant_sch_users
 		INSERT INTO ##grant_sch_users Exec (@query)
-		insert into ##grant_sch_usersz select @dbname, * from ##grant_sch_users
+		insert into ##grantz select @dbname, * from ##grant_sch_users
 		
 FETCH NEXT FROM _users INTO @DBname
 END
@@ -418,9 +417,9 @@ DECLARE _grant_schprivs
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR
 SELECT *
-from ##grant_sch_usersz
+from ##grantz
 
-OPEN _grant_schprivs FETCH NEXT FROM _grant_schprivs INTO @DatabaseName,@SchState,@SchType,@SchName,@SchWG, @SchGrantee
+OPEN _grant_schprivs FETCH NEXT FROM _grant_schprivs INTO @SchState,@SchType,@SchName,@SchWG, @SchGrantee
 WHILE @@FETCH_STATUS = 0
 BEGIN
 	BEGIN
@@ -434,18 +433,18 @@ BEGIN
 			SET @SchWG = ''
 		END
 	END
-SET @msgStatement = 'USE [' + @DatabaseName + ']'
+SET @msgStatement = 'USE [' + @DBname + ']'
 PRINT @msgStatement
 PRINT 'GO'
 SET @msgStatement = @SchState +' ' + @SchType +' ON SCHEMA::[' + @SchName+ '] TO ' + @SchGrantee + ' ' + @SchWG
 PRINT @msgStatement
-FETCH NEXT FROM _grant_schprivs INTO @DatabaseName,@SchState,@SchType,@SchName,@SchWG,@SchGrantee
+FETCH NEXT FROM _grant_schprivs INTO @SchState,@SchType,@SchName,@SchWG,@SchGrantee
 END
 
 CLOSE _grant_schprivs
 DEALLOCATE _grant_schprivs --cleanup cursor
 drop table ##grant_sch_users
-drop table ##grant_sch_usersz
+drop table ##grantz
 
 --Script GRANTS for Objects Level Privilegs
 PRINT ' '
@@ -459,7 +458,7 @@ CREATE TABLE ##grant_obj_users (
     ObjGrantee nvarchar (max),
     ObjWG nvarchar (max))
 
-CREATE TABLE ##grant_obj_usersz (
+CREATE TABLE ##grantz (
 	DatabaseName nvarchar(max),
     ObjState nvarchar(max),
     ObjType nvarchar(max),
@@ -490,7 +489,7 @@ BEGIN
     
 		DELETE FROM ##grant_obj_users
 		INSERT INTO ##grant_obj_users Exec (@query)
-		insert into ##grant_obj_usersz select @dbname, * from ##grant_obj_users
+		insert into ##grantz select @dbname, * from ##grant_obj_users
 		
 FETCH NEXT FROM _users INTO @DBname
 END
@@ -502,9 +501,9 @@ DECLARE _grant_objprivs
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR
 SELECT *
-from ##grant_obj_usersz
+from ##grantz
 
-OPEN _grant_objprivs FETCH NEXT FROM _grant_objprivs INTO @DatabaseName,@ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
+OPEN _grant_objprivs FETCH NEXT FROM _grant_objprivs INTO @ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
 WHILE @@FETCH_STATUS = 0
 BEGIN
 	BEGIN
@@ -518,18 +517,18 @@ BEGIN
 			SET @ObjWG = ''
 		END
 	END
-SET @msgStatement = 'USE [' + @DatabaseName + ']'
+SET @msgStatement = 'USE [' + @DBname + ']'
 PRINT @msgStatement
 PRINT 'GO'
 SET @msgStatement = @ObjState +' ' + @ObjType +' ON ' + @ObjSchema + '.'+ @ObjName + ' TO ' + @ObjGrantee + ' ' + @ObjWG
 PRINT @msgStatement
-FETCH NEXT FROM _grant_objprivs INTO @DatabaseName,@ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
+FETCH NEXT FROM _grant_objprivs INTO @ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
 END
 CLOSE _grant_objprivs
 DEALLOCATE _grant_objprivs --cleanup cursor
 
 drop table ##grant_obj_users
-drop table ##grant_obj_usersz
+drop table ##grantz
 drop table ##users
 
 
